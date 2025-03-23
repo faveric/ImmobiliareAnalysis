@@ -9,6 +9,12 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 
 def main():
+    # Page Configuration
+    st.set_page_config(
+        page_title="Analisi Mercato Immobiliare",
+        page_icon="🏘️",
+        layout="wide"
+    )
     # Initialize houses dataframe
     if 'houses_df_all' not in st.session_state:
         st.session_state['houses_df_all'] = pd.DataFrame()
