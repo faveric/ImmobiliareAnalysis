@@ -13,16 +13,18 @@ def main():
     if 'houses_df_all' not in st.session_state:
         st.session_state['houses_df_all'] = pd.DataFrame()
 
-    st.title("Real Estate Analysis")
-
+    st.title("Analisi Mercato Immobiliare")
+    st.write("Questo tool permette di analizzare il mercato immobiliare del comune selezionato consultando gli annunci online sul sito Immobiliare.it."
+             "I dati sono aggiornati in tempo reale e vengono visualizzati in forma di grafici e mappe interattive."
+             "Per iniziare, seleziona il comune di interesse, indica un range di prezzo e clicca su 'Avvia Ricerca'.")
     # Import Geo data
     geodata = pd.read_csv('./geodata/geo_data.csv')
 
     # Create filters
     filters = create_filters(geodata)
 
-    if st.button("Search Properties"):
-        with st.spinner("Fetching properties..."):
+    if st.button("Avvia Ricerca"):
+        with st.spinner("Recupero gli annunci..."):
             url = get_search_url(filters)
 
             progress_text = st.empty()
@@ -49,14 +51,14 @@ def main():
         col1, col2 = st.columns(2)
 
         with col1:
-            st.metric("Total Properties", len(houses_df))
-            st.metric("Avg Price", f"€{houses_df['price_value'].mean():,.0f}")
-            st.metric("Avg Surface", f"{houses_df['surface'].mean():.0f}m²")
+            st.metric("Numero Annunci", len(houses_df))
+            st.metric("Prezzo Medio", f"€{houses_df['price_value'].mean():,.0f}")
+            st.metric("Superficie Media", f"{houses_df['surface'].mean():.0f}m²")
 
         with col2:
-            st.metric("Median Price/m²", f"€{houses_df['priceperm2'].median():,.0f}")
-            st.metric("Min Price", f"€{houses_df['price_value'].min():,.0f}")
-            st.metric("Max Price", f"€{houses_df['price_value'].max():,.0f}")
+            st.metric("Prezzo Mediano/m²", f"€{houses_df['priceperm2'].median():,.0f}")
+            st.metric("Prezzo Minimo", f"€{houses_df['price_value'].min():,.0f}")
+            st.metric("Prezzo Massimo", f"€{houses_df['price_value'].max():,.0f}")
 
         # Create map
         # Find first valid coordinates for map center
@@ -74,12 +76,13 @@ def main():
 
         m = folium.Map(location=map_center, zoom_start=zoom_start)
 
-        for _, row in houses_df.iterrows():
+        for _, row in houses_df.reset_index().iterrows():
             if pd.notna(row['location_latitude']) and pd.notna(row['location_longitude']):
                 folium.CircleMarker(
                     location=[float(row['location_latitude']), float(row['location_longitude'])],
                     radius=8,
-                    popup=f"Price: €{row['price_value']:,.0f}<br>"
+                    popup=f"ID: {row['realEstate_id']}<br>"
+                          f"Price: €{row['price_value']:,.0f}<br>"
                           f"Surface: {row['surface']}m²<br>"
                           f"Price/m²: €{row['priceperm2']:,.0f}<br>"
                           f"Condition: {row['ga4Condition']}<br>"

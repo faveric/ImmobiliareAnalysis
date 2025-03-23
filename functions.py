@@ -171,8 +171,8 @@ def fetch_all_pages(base_url, session, timeout_minutes=2):
 
     # Verify total count
     st.success(f"Recuparati n°{total_properties} annunci")
-    if total_properties < total_count:
-        st.warning(f"Salvati n°{len(all_houses_df)} annunci unici su {total_count}")
+#    if total_properties < total_count:
+#        st.warning(f"Salvati n°{len(all_houses_df)} annunci unici su {total_count}")
 
     return all_houses_df, total_properties
 
