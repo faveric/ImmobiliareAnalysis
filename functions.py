@@ -9,86 +9,91 @@ import plotly.express as px
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import plotly.colors
 
+def read_page(url, session="", retries=3, delay=2):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+    }
+    for attempt in range(retries):
+        try:
+            if session:
+                response = session.get(url, headers=headers)
+            else:
+                response = requests.get(url, headers=headers)
 
+            if response.status_code == 200:
+                data = json.loads(response.text)
+                results = data.get('results', [])
+                total_count = data.get('count', 0)
+                max_pages = data.get('maxPages', 0)
+                current_page = data.get('currentPage', 1)
 
-def read_page(url, session=""):
-    if session == "":
-        response = requests.get(url)
-    else:
-        response = session.get(url)
+                if not results:
+                    return pd.DataFrame(), 0, True, 0, 0
 
-    if response.status_code == 200:
-        data = json.loads(response.text)
-        results = data.get('results', [])
-        total_count = data.get('count', 0)
-        max_pages = data.get('maxPages', 0)
-        current_page = data.get('currentPage', 1)
+                # Flatten nested JSON using pandas json_normalize
+                df = pd.json_normalize(
+                    results,
+                    record_path=['realEstate', 'properties'],
+                    meta=[
+                        ['realEstate', 'id'],
+                        ['realEstate', 'isNew'],
+                        ['realEstate', 'luxury'],
+                        ['realEstate', 'contract'],
+                        ['seo', 'anchor'],
+                        ['seo', 'url']
+                    ],
+                    errors='ignore'
+                )
 
-        if not results:
-            return pd.DataFrame(), 0, True, 0, 0
+                # Rename columns to remove dots
+                df.columns = df.columns.str.replace('.', '_')
 
-        # Flatten nested JSON using pandas json_normalize
-        df = pd.json_normalize(
-            results,
-            record_path=['realEstate', 'properties'],
-            meta=[
-                ['realEstate', 'id'],
-                ['realEstate', 'isNew'],
-                ['realEstate', 'luxury'],
-                ['realEstate', 'contract'],
-                ['seo', 'anchor'],
-                ['seo', 'url']
-            ],
-            errors='ignore'
-        )
+                # Set index
+                if 'realEstate_id' in df.columns:
+                    df = df.set_index('realEstate_id')
 
-        # Rename columns to remove dots
-        df.columns = df.columns.str.replace('.', '_')
+                # Extract nested values
+                if 'price' in df.columns:
+                    df['price_value'] = df['price'].apply(lambda x: x.get('value') if isinstance(x, dict) else None)
+                    df['price_priceRange'] = df['price'].apply(lambda x: x.get('priceRange') if isinstance(x, dict) else None)
+                    df.drop('price', axis=1, inplace=True)
 
-        # Set index
-        if 'realEstate_id' in df.columns:
-            df = df.set_index('realEstate_id')
+                if 'location' in df.columns:
+                    df['location_city'] = df['location'].apply(lambda x: x.get('city') if isinstance(x, dict) else None)
+                    df['location_latitude'] = df['location'].apply(lambda x: x.get('latitude') if isinstance(x, dict) else None)
+                    df['location_longitude'] = df['location'].apply(
+                        lambda x: x.get('longitude') if isinstance(x, dict) else None)
+                    df['location_macrozone'] = df['location'].apply(
+                        lambda x: x.get('macrozone') if isinstance(x, dict) else None)
+                    df.drop('location', axis=1, inplace=True)
 
-        # Extract nested values
-        if 'price' in df.columns:
-            df['price_value'] = df['price'].apply(lambda x: x.get('value') if isinstance(x, dict) else None)
-            df['price_priceRange'] = df['price'].apply(lambda x: x.get('priceRange') if isinstance(x, dict) else None)
-            df.drop('price', axis=1, inplace=True)
+                # Apply data types
+                data_types = {
+                    'isNew': 'boolean',
+                    'luxury': 'boolean',
+                    'contract': 'category',
+                    'category_name': 'category',
+                    'ga4Condition': 'category',
+                    'location_city': 'category',
+                    'location_macrozone': 'category',
+                    'price_priceRange': 'category',
+                    'bathrooms': 'category',
+                    'rooms': 'category',
+                    'price_value': 'float'
+                }
 
-        if 'location' in df.columns:
-            df['location_city'] = df['location'].apply(lambda x: x.get('city') if isinstance(x, dict) else None)
-            df['location_latitude'] = df['location'].apply(lambda x: x.get('latitude') if isinstance(x, dict) else None)
-            df['location_longitude'] = df['location'].apply(
-                lambda x: x.get('longitude') if isinstance(x, dict) else None)
-            df['location_macrozone'] = df['location'].apply(
-                lambda x: x.get('macrozone') if isinstance(x, dict) else None)
-            df.drop('location', axis=1, inplace=True)
+                for col, dtype in data_types.items():
+                    if col in df.columns:
+                        try:
+                            df[col] = df[col].astype(dtype)
+                        except:
+                            continue
 
-        # Apply data types
-        data_types = {
-            'isNew': 'boolean',
-            'luxury': 'boolean',
-            'contract': 'category',
-            'category_name': 'category',
-            'ga4Condition': 'category',
-            'location_city': 'category',
-            'location_macrozone': 'category',
-            'price_priceRange': 'category',
-            'bathrooms': 'category',
-            'rooms': 'category',
-            'price_value': 'float'
-        }
-
-        for col, dtype in data_types.items():
-            if col in df.columns:
-                try:
-                    df[col] = df[col].astype(dtype)
-                except:
-                    continue
-
-            return df, len(results), False, total_count, max_pages
-        else:
-            return pd.DataFrame(), 0, True, 0, 0
+                    return df, len(results), False, total_count, max_pages
+                else:
+                    return pd.DataFrame(), 0, True, 0, 0
+        except Exception as e:
+            st.write(f"Error: {e}")
 
 def fetch_all_pages(base_url, session, timeout_minutes=2):
     all_houses_df = pd.DataFrame()
@@ -193,7 +198,9 @@ def get_search_url(filters):
         "path" : "%2F"
     }
 
-    return f"{base_url}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
+    search_url = f"{base_url}?{'&'.join([f'{k}={v}' for k, v in params.items()])}"
+    print(search_url)
+    return search_url
 
 def create_filters(geodata):
     # Get unique regions for first dropdown
