@@ -89,11 +89,17 @@ def read_page(url, session="", retries=3, delay=2):
                         except:
                             continue
 
-                    return df, len(results), False, total_count, max_pages
-                else:
-                    return pd.DataFrame(), 0, True, 0, 0
+                return df, len(results), False, total_count, max_pages
+
+            return pd.DataFrame(), 0, True, 0, 0
+
         except Exception as e:
             st.write(f"Error: {e}")
+            time.sleep(delay)
+            if attempt == retries - 1:
+                return pd.DataFrame(), 0, True, 0, 0
+
+    return pd.DataFrame(), 0, True, 0, 0
 
 def fetch_all_pages(base_url, session, timeout_minutes=2):
     all_houses_df = pd.DataFrame()
@@ -182,7 +188,7 @@ def fetch_all_pages(base_url, session, timeout_minutes=2):
     return all_houses_df, total_properties
 
 def get_search_url(filters):
-    base_url = "https://www.immobiliare.it/api-next/search-list/real-estates/"
+    base_url = "https://www.immobiliare.it/api-next/search-list/listings"
     params = {
         "fkRegione": filters['regione'],
         "idProvincia": filters['provincia'],

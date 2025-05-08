@@ -82,6 +82,28 @@ def main():
 
         m = folium.Map(location=map_center, zoom_start=zoom_start)
 
+        # Calculate min and max values for price/m2 to create color scale
+        min_price = houses_df['priceperm2'].min()
+        max_price = houses_df['priceperm2'].max()
+
+        def get_color(value):
+            # Normalize the value between 0 and 1
+            normalized = (value - min_price) / (max_price - min_price)
+            
+            # Create RGB values for gradient from green (low) through yellow to red (high)
+            if normalized <= 0.5:
+                # Green to Yellow gradient
+                r = int(255 * (2 * normalized))
+                g = 255
+                b = 0
+            else:
+                # Yellow to Red gradient
+                r = 255
+                g = int(255 * (2 * (1 - normalized)))
+                b = 0
+            
+            return f'#{r:02x}{g:02x}{b:02x}'
+
         for _, row in houses_df.reset_index().iterrows():
             if pd.notna(row['location_latitude']) and pd.notna(row['location_longitude']):
                 folium.CircleMarker(
@@ -93,8 +115,9 @@ def main():
                           f"Price/m²: €{row['priceperm2']:,.0f}<br>"
                           f"Condition: {row['ga4Condition']}<br>"
                           f"Heating: {row['ga4Heating']}",
-                    color='red',
-                    fill=True
+                    color=get_color(row['priceperm2']),
+                    fill=True,
+                    fill_color=get_color(row['priceperm2'])
                 ).add_to(m)
 
         folium_static(m)
